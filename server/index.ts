@@ -71,10 +71,16 @@ import type {
   StopAssignment,
 } from "../shared/types.js";
 import { SCRANTON_DEPOT } from "../shared/constants.js";
+import { accessCodeMiddleware } from "./access-code.js";
 
 const app = express();
+if (process.env.TRUST_PROXY === "true") {
+  app.set("trust proxy", 1);
+}
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: false }));
+app.use(accessCodeMiddleware);
 
 const REFERENCE_DATE = new Date("2026-09-10T12:00:00");
 const routePlans = new Map<string, RoutePlan>();

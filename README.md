@@ -30,7 +30,18 @@ GOOGLE_MAPS_API_KEY=your_key_here
 
 Restart the API server after setting the key. Without it, the app uses straight-line distance estimates at 45 mph.
 
-## GitHub Pages (dashboard hosting)
+## AWS EC2 + Docker (recommended for team PoC)
+
+The full app (UI + API) runs in one container on a single EC2 instance, with an optional **access code** link for your team.
+
+- **Guide:** [deploy/aws-ec2.md](deploy/aws-ec2.md)
+- **Local test:** `docker compose up --build` (set `ACCESS_CODE` in `.env` to try the gate)
+- **Share link:** `https://<your-host>/?code=<ACCESS_CODE>` (set `COOKIE_SECURE=false` for plain HTTP on an Elastic IP)
+- **Deploy from GitHub:** workflow [`.github/workflows/deploy-aws-ec2.yml`](.github/workflows/deploy-aws-ec2.yml) (add `EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY` when the instance is ready)
+
+Customer and route data are **in memory**; restarting the container clears the week’s upload until someone imports the CSV again.
+
+## GitHub Pages (dashboard-only hosting)
 
 The built dashboard is published as static files at the repo root:
 
