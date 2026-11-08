@@ -1,0 +1,35 @@
+# Optional: run deploy ON the EC2 instance (no SSH from GitHub).
+# Install a self-hosted runner on the server, label it `routing`, then enable
+# this workflow. Disable or ignore deploy-aws-ec2.yml if you use this path.
+#
+# https://docs.github.com/en/actions/hosting-your-own-runners
+
+name: Deploy to AWS EC2 (self-hosted runner)
+
+on:
+  workflow_dispatch:
+  # Enable push after a self-hosted runner is installed (label: routing):
+  # push:
+  #   branches: [main]
+
+concurrency:
+  group: deploy-aws-ec2
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, routing]
+    steps:
+      - name: Redeploy from server clone
+        env:
+          APP_DIR_VAR: ${{ vars.EC2_APP_DIR }}
+        run: |
+          set -euo pipefail
+          APP_DIR="${APP_DIR_VAR:-$HOME/ROUTINGv2}"
+          if [[ ! -d "$APP_DIR" ]]; then
+            echo "Repo not found at $APP_DIR — set Actions variable EC2_APP_DIR or clone to ~/ROUTINGv2"
+            exit 1
+          fi
+          cd "$APP_DIR"
+          export DEPLOY_BRANCH=main
+          bash deploy/ec2/redeploy.sh

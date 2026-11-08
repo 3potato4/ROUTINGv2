@@ -126,7 +126,28 @@ Repository **Secrets**:
 
 Optional variable `EC2_APP_DIR` (default `$HOME/ROUTINGv2` on the server).
 
-Workflow: [`.github/workflows/deploy-aws-ec2.yml`](../.github/workflows/deploy-aws-ec2.yml). Skips until secrets exist.
+Workflow: [`.github/workflows/deploy-aws-ec2.yml`](../.github/workflows/deploy-aws-ec2.yml).
+
+### Troubleshooting: `dial tcp …:22: i/o timeout`
+
+GitHub Actions runs on **random cloud IPs**, not your laptop. If SSH from your machine works but Actions fails with a **30s timeout**, the instance is almost always blocking port 22 from the internet.
+
+**Fix A — allow SSH from anywhere (simple PoC)**  
+EC2 → instance → **Security** → security group → **Edit inbound rules** → SSH (22) → source **`0.0.0.0/0`** (authentication still requires your `.pem`). Save, then re-run the workflow.
+
+**Fix B — keep SSH locked to your IP (recommended)**  
+Do **not** open 22 to the world. Use a **self-hosted GitHub Actions runner** on the same EC2 box ([`deploy-aws-ec2-self-hosted.yml`](../.github/workflows/deploy-aws-ec2-self-hosted.yml)): the job runs locally and calls `redeploy.sh` with no inbound SSH from GitHub.
+
+**Also check**
+
+| Check | Detail |
+|-------|--------|
+| `EC2_HOST` | Public **IPv4** or EC2 public DNS — not a private `10.x` address |
+| Same host as manual SSH | Use the exact hostname/IP that works in `ssh -i key.pem user@host` |
+| Instance running | Stopped instances time out |
+| Elastic IP | If you use a DNS name, it must point at the instance’s current public IP |
+
+Workflow **Verify deploy secrets** passing + **Deploy over SSH** timing out ⇒ secrets are fine; network/security group is the problem.
 
 ## 6. Local Docker test (no Caddy)
 
