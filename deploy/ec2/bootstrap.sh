@@ -7,8 +7,12 @@ REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 cd "$REPO_DIR"
 
 if command -v dnf &>/dev/null; then
-  sudo dnf install -y docker docker-compose-plugin git
+  sudo dnf install -y docker git
+  sudo dnf install -y docker-compose-plugin 2>/dev/null || true
   sudo systemctl enable --now docker
+  if ! docker compose version &>/dev/null; then
+  bash "$REPO_DIR/deploy/ec2/install-docker-compose.sh"
+  fi
 elif command -v apt-get &>/dev/null; then
   sudo apt-get update
   sudo apt-get install -y docker.io docker-compose-v2 git
