@@ -187,13 +187,15 @@ export async function importWeeklyCustomersCsv(
 ): Promise<CustomerUploadSummary> {
   const result = await parseCustomersCsv(csvText, referenceDate);
 
-  if (result.errors.length > 0) {
+  if (result.customers.length === 0) {
     uploadSummary = {
       uploadedAt: new Date().toISOString(),
       customerCount: 0,
       orderCount: 0,
       filename,
-      errors: result.errors,
+      errors: result.errors.length
+        ? result.errors
+        : ["CSV did not contain any importable accounts."],
       warnings: result.warnings,
       awaitingOrderSelection: false,
     };
@@ -213,7 +215,7 @@ export async function importWeeklyCustomersCsv(
     customerCount: customers.length,
     orderCount: 0,
     filename,
-    errors: [],
+    errors: result.errors,
     warnings: result.warnings,
     awaitingOrderSelection: true,
     fromCsvUpload: true,

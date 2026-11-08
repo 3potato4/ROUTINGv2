@@ -52,6 +52,28 @@ export function normalizeAddressFields(
     .trim();
   let z = (zip ?? "").trim();
 
+  if (/^,\s*\S/.test(s) && !c) {
+    c = s.replace(/^,\s*/, "").trim();
+    s = "";
+  }
+
+  if (!c && s.includes(",")) {
+    const segments = s
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (segments.length >= 2) {
+      const tail = segments[segments.length - 1]!;
+      if (/^PA$/i.test(tail) && segments.length >= 3) {
+        c = segments[segments.length - 2]!;
+        s = segments.slice(0, -2).join(", ");
+      } else if (!/^\d{5}(?:-\d{4})?$/.test(tail)) {
+        c = tail.replace(/\s+PA$/i, "").trim();
+        s = segments.slice(0, -1).join(", ");
+      }
+    }
+  }
+
   const zipInStreet = s.match(/(?:,\s*)?(\d{5})(?:-\d{4})?\s*(?:,\s*PA)?\s*$/i);
   if (zipInStreet) {
     if (!z) z = zipInStreet[1];
@@ -263,6 +285,24 @@ async function geocodeWithNominatim(
     await sleep(500);
   }
   return null;
+}
+
+/** Fast placement for bulk CSV import — no external API calls (use Re-geocode after load). */
+export function resolveCoordinatesApproximate(
+  street: string,
+  city: string,
+  territoryId: string,
+  customerName: string,
+  zip?: string
+): { lat: number; lng: number; geocoded: boolean } {
+  const normalized = normalizeAddressFields(street, city, zip);
+  const centroid = TERRITORY_CENTROIDS[territoryId] ?? TERRITORY_CENTROIDS["northeast-pa"];
+  const offset = hashOffset(customerName + normalized.street);
+  return {
+    lat: centroid.lat + offset.lat,
+    lng: centroid.lng + offset.lng,
+    geocoded: false,
+  };
 }
 
 export async function resolveCoordinates(

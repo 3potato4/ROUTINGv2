@@ -7,6 +7,7 @@ import {
   fetchUploadStatus,
 } from "../lib/api";
 import { MIN_ORDER_CASES } from "@shared/constants";
+import { formatStreetCity } from "@shared/formatAddress";
 import type { CustomerListItem, CustomerUploadSummary, TerritoryCycle } from "@shared/types";
 import {
   defaultCycleForTerritory,
@@ -39,7 +40,7 @@ function customerSortValue(customer: CustomerListItem, column: CustomerSortColum
     case "lid":
       return customer.outfieldLid ?? "";
     case "address":
-      return `${customer.address}, ${customer.city}`;
+      return formatStreetCity(customer.address, customer.city);
     case "territory":
       return customer.territoryName;
     case "contact":
@@ -368,6 +369,13 @@ export default function CustomerDatabaseDashboard({
               {status?.orderCount != null && status.orderCount > 0
                 ? ` · ${status.orderCount} active order${status.orderCount !== 1 ? "s" : ""}`
                 : ""}
+              {status?.errors?.length ? (
+                <>
+                  {" "}
+                  · {status.errors.length} row{status.errors.length !== 1 ? "s" : ""} skipped on
+                  import (see upload panel)
+                </>
+              ) : null}
               {customers.length === 0 ? " · upload Outfield_Accounts.csv to import" : ""}
             </p>
           </div>
@@ -601,7 +609,7 @@ export default function CustomerDatabaseDashboard({
                     </td>
                     <td className="customer-database__lid">{c.outfieldLid || "—"}</td>
                     <td>
-                      {c.address}, {c.city}
+                      {formatStreetCity(c.address, c.city)}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>{c.territoryName}</td>
                     <td>
