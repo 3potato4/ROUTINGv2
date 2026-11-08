@@ -7,7 +7,7 @@ REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 cd "$REPO_DIR"
 
 if command -v dnf &>/dev/null; then
-  sudo dnf install -y docker git
+  sudo dnf install -y docker docker-compose-plugin git
   sudo systemctl enable --now docker
 elif command -v apt-get &>/dev/null; then
   sudo apt-get update

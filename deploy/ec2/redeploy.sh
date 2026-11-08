@@ -5,6 +5,17 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 BRANCH="${DEPLOY_BRANCH:-main}"
 
+compose() {
+  if docker compose version &>/dev/null; then
+    docker compose "$@"
+  elif command -v docker-compose &>/dev/null; then
+    docker-compose "$@"
+  else
+    echo "Docker Compose not found. On Amazon Linux run: sudo dnf install -y docker-compose-plugin" >&2
+    exit 1
+  fi
+}
+
 cd "$REPO_DIR"
 
 if [[ -d .git ]]; then
@@ -18,9 +29,9 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-docker compose build --pull
-docker compose up -d --remove-orphans
-docker compose ps
+compose build --pull
+compose up -d --remove-orphans
+compose ps
 
 HOST_PORT="${HOST_PORT:-3000}"
 echo "App should be on port ${HOST_PORT} — check: curl -sS http://127.0.0.1:${HOST_PORT}/api/health"
