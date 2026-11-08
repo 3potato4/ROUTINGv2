@@ -53,10 +53,8 @@ export default function CustomerUpload({
       const text = await file.text();
       const result = await uploadCustomersCsv(text, file.name);
       setStatus(result);
-      if (result.customerCount > 0) {
-        onCustomersLoaded?.();
-        if (result.orderCount > 0) onUploaded();
-      }
+      onCustomersLoaded?.();
+      if (result.customerCount > 0 && result.orderCount > 0) onUploaded();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -103,6 +101,7 @@ export default function CustomerUpload({
   const hasUploadIssues = (status?.errors?.length ?? 0) > 0 || (status?.warnings?.length ?? 0) > 0;
   const canClearData = loadedCount > 0 || hasUploadIssues;
   const canRegeocode = (status?.customerCount ?? 0) > 0;
+  const showClearInIssuesBar = layout === "header" && parseIssues.length > 0 && canClearData;
 
   const layoutClass =
     layout === "header"
@@ -148,7 +147,7 @@ export default function CustomerUpload({
                 {layout === "header" ? "Re-geocode" : "Re-geocode addresses"}
               </button>
             ) : null}
-            {canClearData ? (
+            {canClearData && !showClearInIssuesBar ? (
               <button
                 type="button"
                 className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
@@ -177,6 +176,17 @@ export default function CustomerUpload({
 
       {parseIssues.length > 0 && (
         <div className="customer-upload__issues">
+          {showClearInIssuesBar ? (
+            <button
+              type="button"
+              className="btn btn--secondary btn--compact"
+              disabled={uploading}
+              title="Remove this import, then use Upload CSV to try again"
+              onClick={() => void handleClear()}
+            >
+              Clear data
+            </button>
+          ) : null}
           <button
             type="button"
             className="customer-upload__issues-toggle"
