@@ -2,7 +2,12 @@ import type { Customer } from "../../shared/types.js";
 import { normalizeContactFields } from "../../shared/contactFormat.js";
 import { sanitizeTeamMembers } from "../../shared/teamMembers.js";
 import { resolveTerritoryInput } from "./territories.js";
-import { normalizeAddressFields, resolveCoordinates, consumeGeocoderAlerts, resetGeocoderAlerts } from "./geocoder.js";
+import {
+  normalizeAddressFields,
+  resolveCoordinatesApproximate,
+  consumeGeocoderAlerts,
+  resetGeocoderAlerts,
+} from "./geocoder.js";
 
 /** Maps normalized header tokens to internal field names */
 const HEADER_ALIASES: Record<string, string> = {
@@ -44,6 +49,7 @@ const HEADER_ALIASES: Record<string, string> = {
   point_of_contact: "contact_name",
   poc: "contact_name",
   delivery_instructions: "delivery_instructions",
+  delivery_instructions_places: "delivery_instructions",
   instructions: "delivery_instructions",
   delivery_notes: "delivery_instructions",
   team_members: "team_members",
@@ -53,6 +59,9 @@ const HEADER_ALIASES: Record<string, string> = {
   na_payment_method: "payment_method",
   payment_method: "payment_method",
   territory: "territory",
+  territory_places: "territory",
+  lid_places: "outfield_lid",
+  na_payment_method_places: "payment_method",
   lat: "lat",
   latitude: "lat",
   lng: "lng",
@@ -166,6 +175,13 @@ function normalizeHeader(h: string): string {
   return HEADER_ALIASES[key] ?? key;
 }
 
+function cleanCsvCell(value: string): string {
+  return value
+    .replace(/\uFEFF/g, "")
+    .replace(/[\u00A0\u200B-\u200D\u2060]/g, " ")
+    .trim();
+}
+
 function parseCsvLine(line: string): string[] {
   const fields: string[] = [];
   let current = "";
@@ -180,14 +196,156 @@ function parseCsvLine(line: string): string[] {
         inQuotes = !inQuotes;
       }
     } else if (ch === "," && !inQuotes) {
-      fields.push(current.trim());
+      fields.push(cleanCsvCell(current));
       current = "";
     } else {
       current += ch;
     }
   }
-  fields.push(current.trim());
+  fields.push(cleanCsvCell(current));
   return fields;
+}
+
+/** Parse full CSV text including quoted fields that span lines. */
+function parseCsvRecords(text: string): string[][] {
+  const records: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        field += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(cleanCsvCell(field));
+      field = "";
+    } else if (ch === "\n" || (ch === "\r" && next === "\n")) {
+      row.push(cleanCsvCell(field));
+      field = "";
+      if (row.some((cell) => cell.length > 0)) records.push(row);
+      row = [];
+      if (ch === "\r") i++;
+    } else if (ch === "\r") {
+      row.push(cleanCsvCell(field));
+      field = "";
+      if (row.some((cell) => cell.length > 0)) records.push(row);
+      row = [];
+    } else {
+      field += ch;
+    }
+  }
+
+  row.push(cleanCsvCell(field));
+  if (row.some((cell) => cell.length > 0)) records.push(row);
+
+  return records;
+}
+
+/**
+ * When unquoted commas split a row, merge extra cells back into delivery instructions
+ * and keep trailing columns (LID, payment, territory on Outfield exports) aligned.
+ */
+function realignCsvValues(values: string[], headers: string[]): string[] {
+  if (values.length <= headers.length) {
+    if (values.length < headers.length) {
+      return [...values, ...Array(headers.length - values.length).fill("")];
+    }
+    return values;
+  }
+
+  const instructionIdx = headers.indexOf("delivery_instructions");
+  if (instructionIdx < 0) {
+    return values.slice(0, headers.length);
+  }
+
+  const tailLen = headers.length - instructionIdx - 1;
+  if (tailLen < 1) {
+    return values.slice(0, headers.length);
+  }
+
+  const head = values.slice(0, instructionIdx);
+  const tail = values.slice(values.length - tailLen);
+  const middle = values.slice(instructionIdx, values.length - tailLen);
+  const instructions = middle.join(", ");
+  return [...head, instructions, ...tail];
+}
+
+function resolveTerritoryForImport(
+  row: Record<string, string>,
+  values: string[],
+  territoryColIdx: number,
+  rowNumber: number,
+  name: string,
+  warnings: string[]
+): { territoryId: string | null; territoryRaw: string } {
+  const city = cleanCsvCell(row.city ?? "");
+  let territoryRaw = cleanCsvCell(row.territory ?? "");
+
+  const tryResolve = (raw: string): string | null => {
+    const cleaned = cleanCsvCell(raw);
+    if (!cleaned) return resolveTerritoryInput("", city);
+    return resolveTerritoryInput(cleaned, city);
+  };
+
+  let territoryId = tryResolve(territoryRaw);
+
+  if (!territoryId && values.length > 0) {
+    const last = cleanCsvCell(values[values.length - 1] ?? "");
+    if (last) {
+      const fromLast = tryResolve(last);
+      if (fromLast) {
+        territoryId = fromLast;
+        territoryRaw = last;
+        if (territoryColIdx < 0 || values.length - 1 !== territoryColIdx) {
+          warnings.push(
+            `Row ${rowNumber} (${name}): territory "${last}" read from last column — row may have extra commas (quote delivery instructions in CSV)`
+          );
+        }
+      }
+    }
+  }
+
+  if (!territoryId) {
+    for (let i = values.length - 1; i >= 0; i--) {
+      const candidate = cleanCsvCell(values[i] ?? "");
+      if (!candidate || candidate === name) continue;
+      const fromScan = resolveTerritoryInput(candidate, city);
+      if (fromScan) {
+        territoryId = fromScan;
+        territoryRaw = candidate;
+        if (i !== territoryColIdx) {
+          warnings.push(
+            `Row ${rowNumber} (${name}): territory "${candidate}" inferred from column ${i + 1}`
+          );
+        }
+        break;
+      }
+    }
+  }
+
+  if (!territoryId && !territoryRaw.trim()) {
+    territoryId = resolveTerritoryInput("", city);
+    if (territoryId) {
+      warnings.push(`Row ${rowNumber} (${name}): territory inferred from city "${city}"`);
+    }
+  }
+
+  return { territoryId, territoryRaw };
 }
 
 /** Trim Outfield email cells; keep multiple addresses in one string when present. */
@@ -219,16 +377,9 @@ export async function parseCustomersCsv(
   const suggestedCases: Record<string, number> = {};
   const suggestedCycles: Record<string, number> = {};
 
-  const lines = csvText
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+  const records = parseCsvRecords(csvText.replace(/^\uFEFF/, ""));
 
-  if (lines.length > 0) {
-    lines[0] = lines[0].replace(/^\uFEFF/, "");
-  }
-
-  if (lines.length < 2) {
+  if (records.length < 2) {
     return {
       customers,
       suggestedCases,
@@ -238,7 +389,8 @@ export async function parseCustomersCsv(
     };
   }
 
-  const headers = parseCsvLine(lines[0]).map(normalizeHeader);
+  const headers = records[0]!.map(normalizeHeader);
+  const territoryColIdx = headers.indexOf("territory");
   const required = [
     "restaurant_name",
     "address",
@@ -265,31 +417,34 @@ export async function parseCustomersCsv(
   resetGeocoderAlerts();
   const seenIds = new Set<string>();
 
-  for (let rowIdx = 1; rowIdx < lines.length; rowIdx++) {
-    const values = parseCsvLine(lines[rowIdx]);
+  for (let rowIdx = 1; rowIdx < records.length; rowIdx++) {
+    const values = realignCsvValues(records[rowIdx]!, headers);
     const row: Record<string, string> = {};
     headers.forEach((h, i) => {
-      row[h] = values[i]?.trim() ?? "";
+      row[h] = values[i] ?? "";
     });
 
-    const name = row.restaurant_name;
+    const name = cleanCsvCell(row.restaurant_name ?? "");
     if (!name) {
       warnings.push(`Row ${rowIdx + 1}: skipped — missing restaurant name`);
       continue;
     }
+    row.restaurant_name = name;
 
-    const territoryRaw = row.territory ?? "";
-    const territoryId = resolveTerritoryInput(territoryRaw, row.city);
+    const rowNumber = rowIdx + 1;
+    const { territoryId, territoryRaw } = resolveTerritoryForImport(
+      row,
+      values,
+      territoryColIdx,
+      rowNumber,
+      name,
+      warnings
+    );
     if (!territoryId) {
       errors.push(
-        `Row ${rowIdx + 1} (${name}): unknown territory "${territoryRaw || "(blank)"}"`
+        `Row ${rowNumber} (${name}): unknown territory "${territoryRaw || "(blank)"}"`
       );
       continue;
-    }
-    if (!territoryRaw.trim() && row.city?.trim()) {
-      warnings.push(
-        `Row ${rowIdx + 1} (${name}): blank territory — inferred from city "${row.city}"`
-      );
     }
 
     const parsedContact = parseContactPhoneField(row.phone_field ?? "");
@@ -315,21 +470,10 @@ export async function parseCustomersCsv(
     );
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      const coords = await resolveCoordinates(street, normCity, territoryId, name, zip);
+      const coords = resolveCoordinatesApproximate(street, normCity, territoryId, name, zip);
       lat = coords.lat;
       lng = coords.lng;
       geocodedFromAddress = coords.geocoded;
-      if (!coords.geocoded) {
-        warnings.push(
-          `Row ${rowIdx + 1} (${name}): address not found — using approximate territory location`
-        );
-      }
-      // Rate-limit external geocoders during bulk import
-      if (!process.env.GOOGLE_MAPS_API_KEY?.trim()) {
-        await new Promise((r) => setTimeout(r, 250));
-      } else {
-        await new Promise((r) => setTimeout(r, 50));
-      }
     }
 
     let id = slugify(name, rowIdx);
@@ -373,6 +517,12 @@ export async function parseCustomersCsv(
 
   for (const alert of consumeGeocoderAlerts()) {
     if (!warnings.includes(alert)) warnings.unshift(alert);
+  }
+
+  if (customers.length > 0) {
+    warnings.push(
+      "Addresses use approximate map pins until you run Re-geocode addresses on the loaded file."
+    );
   }
 
   return { customers, suggestedCases, suggestedCycles, errors, warnings };

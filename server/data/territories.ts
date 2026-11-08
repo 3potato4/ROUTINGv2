@@ -131,6 +131,7 @@ const TERRITORY_ALIASES: Record<string, string> = {
 const CITY_TERRITORY_HINTS: Record<string, string> = {
   "bryn mawr": "western-philly",
   "bala cynwyd": "western-philly",
+  "west chester": "western-philly",
 };
 
 export function getTerritoryIdsForCycle(cycle: TerritoryCycle): string[] {

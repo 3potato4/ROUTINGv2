@@ -50,7 +50,7 @@ export default function CustomerUpload({
       const text = await file.text();
       const result = await uploadCustomersCsv(text, file.name);
       setStatus(result);
-      if (result.errors.length === 0) {
+      if (result.customerCount > 0) {
         onCustomersLoaded?.();
         if (result.orderCount > 0) onUploaded();
       }
@@ -150,11 +150,16 @@ export default function CustomerUpload({
         )}
       </div>
 
-      {status && status.customerCount > 0 && !hideLoadedStatus && (
-        <p className="customer-upload__status">
+      {status && status.customerCount > 0 && (
+        <p className={`customer-upload__status${hideLoadedStatus ? " customer-upload__status--compact" : ""}`}>
           {status.filename ? `${status.filename}: ` : ""}
           {status.customerCount} accounts loaded
-          {status.orderCount > 0 ? ` · ${status.orderCount} orders` : " · select orders below"}
+          {status.errors.length > 0
+            ? ` · ${status.errors.length} row${status.errors.length !== 1 ? "s" : ""} skipped`
+            : ""}
+          {!hideLoadedStatus &&
+            (status.orderCount > 0 ? ` · ${status.orderCount} orders` : " · select orders below")}
+          {hideLoadedStatus && status.errors.length === 0 ? " · use Re-geocode for precise map pins" : ""}
         </p>
       )}
 
