@@ -81,12 +81,12 @@ export default function CustomerUpload({
   }
 
   async function handleClear() {
-    if (!status?.customerCount) return;
     setUploading(true);
     setError(null);
+    setParseIssuesOpen(false);
     try {
-      const result = await resetCustomers();
-      setStatus(result.customerCount > 0 ? result : null);
+      await resetCustomers();
+      setStatus(null);
       onCustomersLoaded?.();
       onUploaded();
     } catch (e) {
@@ -95,6 +95,8 @@ export default function CustomerUpload({
       setUploading(false);
     }
   }
+
+  const hasLoadedAccounts = (status?.customerCount ?? 0) > 0;
 
   const layoutClass =
     layout === "header"
@@ -128,27 +130,34 @@ export default function CustomerUpload({
         >
           {uploading ? "Uploading…" : "Upload CSV"}
         </button>
-        {status && status.customerCount > 0 && (
-          <>
-            <button
-              type="button"
-              className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
-              disabled={uploading}
-              onClick={() => void handleRegeocode()}
-            >
-              {layout === "header" ? "Re-geocode" : "Re-geocode addresses"}
-            </button>
-            <button
-              type="button"
-              className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
-              disabled={uploading}
-              onClick={() => void handleClear()}
-            >
-              {layout === "header" ? "Clear data" : "Clear uploaded data"}
-            </button>
-          </>
+        {hasLoadedAccounts && (
+          <button
+            type="button"
+            className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
+            disabled={uploading}
+            onClick={() => void handleRegeocode()}
+          >
+            {layout === "header" ? "Re-geocode" : "Re-geocode addresses"}
+          </button>
         )}
+        <button
+          type="button"
+          className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
+          disabled={uploading}
+          onClick={() => void handleClear()}
+          title="Remove imported accounts, orders, and failed upload state"
+        >
+          {layout === "header" ? "Clear data" : "Clear uploaded data"}
+        </button>
       </div>
+
+      {status && status.customerCount === 0 && status.errors.length > 0 && (
+        <p className="customer-upload__error customer-upload__error--import">
+          {status.filename ? `${status.filename}: ` : ""}
+          No accounts were imported ({status.errors.length} row
+          {status.errors.length !== 1 ? "s" : ""} blocked). Use Clear data, then upload again.
+        </p>
+      )}
 
       {status && status.customerCount > 0 && (
         <p className={`customer-upload__status${hideLoadedStatus ? " customer-upload__status--compact" : ""}`}>
