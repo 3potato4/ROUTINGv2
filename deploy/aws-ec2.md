@@ -26,8 +26,12 @@ Create an **A record** for **`magnottarouting.com`** (record name **blank** in R
 
 ## 2. Install on the instance
 
+**Private repo:** EC2 needs read access to GitHub. Use a **deploy key** (recommended): generate `ssh-keygen -t ed25519 -f routing-deploy -N ""`, add `routing-deploy.pub` under repo **Settings → Deploy keys** (read-only), copy the private key to the instance (e.g. `~/.ssh/routing-deploy`, `chmod 600`), then clone with SSH. GitHub Actions `git pull` in `redeploy.sh` uses the same `origin` URL.
+
 ```bash
-git clone https://github.com/3potato4/ROUTINGv2.git
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/routing-deploy
+git clone git@github.com:3potato4/ROUTINGv2.git
 cd ROUTINGv2
 cp deploy/ec2/env.production.example .env
 chmod +x deploy/ec2/*.sh
