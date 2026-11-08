@@ -5,6 +5,7 @@ import { resolveTerritoryInput } from "./territories.js";
 import {
   normalizeAddressFields,
   resolveCoordinatesApproximate,
+  normalizeCsvCoordinates,
   consumeGeocoderAlerts,
   resetGeocoderAlerts,
 } from "./geocoder.js";
@@ -469,6 +470,21 @@ export async function parseCustomersCsv(
       row.zip
     );
 
+    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      const coords = normalizeCsvCoordinates(lat, lng);
+      if (coords.valid) {
+        lat = coords.lat;
+        lng = coords.lng;
+        if (coords.swapped) {
+          warnings.push(`Row ${rowNumber} (${name}): lat/lng columns look swapped — corrected.`);
+        }
+      } else {
+        lat = Number.NaN;
+        lng = Number.NaN;
+        warnings.push(`Row ${rowNumber} (${name}): ignoring invalid lat/lng — will geocode from address.`);
+      }
+    }
+
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
       const coords = resolveCoordinatesApproximate(street, normCity, territoryId, name, zip);
       lat = coords.lat;
@@ -517,12 +533,6 @@ export async function parseCustomersCsv(
 
   for (const alert of consumeGeocoderAlerts()) {
     if (!warnings.includes(alert)) warnings.unshift(alert);
-  }
-
-  if (customers.length > 0) {
-    warnings.push(
-      "Addresses use approximate map pins until you run Re-geocode addresses on the loaded file."
-    );
   }
 
   return { customers, suggestedCases, suggestedCycles, errors, warnings };

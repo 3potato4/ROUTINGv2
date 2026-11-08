@@ -210,13 +210,15 @@ export async function importWeeklyCustomersCsv(
   awaitingOrderSelection = customers.length > 0;
   fromCsvUpload = true;
 
+  const geocode = await geocodeLoadedCustomers();
+
   uploadSummary = {
     uploadedAt: new Date().toISOString(),
     customerCount: customers.length,
     orderCount: 0,
     filename,
     errors: result.errors,
-    warnings: result.warnings,
+    warnings: [...result.warnings, ...geocode.warnings],
     awaitingOrderSelection: true,
     fromCsvUpload: true,
   };
@@ -643,7 +645,7 @@ export function clearCustomerData(): CustomerUploadSummary {
   };
 }
 
-export async function regeocodeAllCustomers(): Promise<CustomerUploadSummary> {
+async function geocodeLoadedCustomers(): Promise<{ geocoded: number; approximate: number; warnings: string[] }> {
   const warnings: string[] = [];
   let geocoded = 0;
   let approximate = 0;
@@ -686,10 +688,16 @@ export async function regeocodeAllCustomers(): Promise<CustomerUploadSummary> {
 
   if (customers.length > 0) {
     warnings.unshift(
-      `Re-geocoded ${geocoded} of ${customers.length} addresses` +
+      `Geocoded ${geocoded} of ${customers.length} addresses for map and route optimization` +
         (approximate > 0 ? ` (${approximate} approximate)` : "")
     );
   }
+
+  return { geocoded, approximate, warnings };
+}
+
+export async function regeocodeAllCustomers(): Promise<CustomerUploadSummary> {
+  const { warnings } = await geocodeLoadedCustomers();
 
   return {
     uploadedAt: new Date().toISOString(),

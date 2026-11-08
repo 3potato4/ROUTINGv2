@@ -128,7 +128,7 @@ export default function CustomerUpload({
           disabled={uploading}
           onClick={() => inputRef.current?.click()}
         >
-          {uploading ? "Uploading…" : "Upload CSV"}
+          {uploading ? "Uploading & geocoding…" : "Upload CSV"}
         </button>
         {hasLoadedAccounts && (
           <button
@@ -168,7 +168,7 @@ export default function CustomerUpload({
             : ""}
           {!hideLoadedStatus &&
             (status.orderCount > 0 ? ` · ${status.orderCount} orders` : " · select orders below")}
-          {hideLoadedStatus && status.errors.length === 0 ? " · use Re-geocode for precise map pins" : ""}
+          {hideLoadedStatus && status.errors.length === 0 ? " · Re-geocode if pins still look wrong" : ""}
         </p>
       )}
 
