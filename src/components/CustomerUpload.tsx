@@ -17,6 +17,8 @@ interface CustomerUploadProps {
   layout?: "sidebar" | "inline" | "header";
   /** Hide loaded-account status (shown elsewhere on the page) */
   hideLoadedStatus?: boolean;
+  /** When the parent already knows accounts are loaded (e.g. after a failed re-import). */
+  existingCustomerCount?: number;
 }
 
 export default function CustomerUpload({
@@ -26,6 +28,7 @@ export default function CustomerUpload({
   title = "Weekly customers",
   layout = "sidebar",
   hideLoadedStatus = false,
+  existingCustomerCount = 0,
 }: CustomerUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -81,7 +84,7 @@ export default function CustomerUpload({
   }
 
   async function handleClear() {
-    if (!status?.customerCount) return;
+    if (!canClearData) return;
     setUploading(true);
     setError(null);
     try {
@@ -95,6 +98,11 @@ export default function CustomerUpload({
       setUploading(false);
     }
   }
+
+  const loadedCount = Math.max(status?.customerCount ?? 0, existingCustomerCount);
+  const hasUploadIssues = (status?.errors?.length ?? 0) > 0 || (status?.warnings?.length ?? 0) > 0;
+  const canClearData = loadedCount > 0 || hasUploadIssues;
+  const canRegeocode = (status?.customerCount ?? 0) > 0;
 
   const layoutClass =
     layout === "header"
@@ -128,24 +136,28 @@ export default function CustomerUpload({
         >
           {uploading ? "Uploading…" : "Upload CSV"}
         </button>
-        {status && status.customerCount > 0 && (
+        {(canRegeocode || canClearData) && (
           <>
-            <button
-              type="button"
-              className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
-              disabled={uploading}
-              onClick={() => void handleRegeocode()}
-            >
-              {layout === "header" ? "Re-geocode" : "Re-geocode addresses"}
-            </button>
-            <button
-              type="button"
-              className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
-              disabled={uploading}
-              onClick={() => void handleClear()}
-            >
-              {layout === "header" ? "Clear data" : "Clear uploaded data"}
-            </button>
+            {canRegeocode ? (
+              <button
+                type="button"
+                className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
+                disabled={uploading}
+                onClick={() => void handleRegeocode()}
+              >
+                {layout === "header" ? "Re-geocode" : "Re-geocode addresses"}
+              </button>
+            ) : null}
+            {canClearData ? (
+              <button
+                type="button"
+                className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
+                disabled={uploading}
+                onClick={() => void handleClear()}
+              >
+                {layout === "header" ? "Clear data" : "Clear uploaded data"}
+              </button>
+            ) : null}
           </>
         )}
       </div>
