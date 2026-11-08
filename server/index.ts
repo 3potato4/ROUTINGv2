@@ -72,6 +72,8 @@ import type {
 } from "../shared/types.js";
 import { SCRANTON_DEPOT } from "../shared/constants.js";
 import { accessCodeMiddleware } from "./access-code.js";
+import { attachRateLimits } from "./rate-limit.js";
+import { handleHealth } from "./health.js";
 
 const app = express();
 if (process.env.TRUST_PROXY === "true") {
@@ -80,6 +82,7 @@ if (process.env.TRUST_PROXY === "true") {
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false }));
+attachRateLimits(app);
 app.use(accessCodeMiddleware);
 
 const REFERENCE_DATE = new Date("2026-09-10T12:00:00");
@@ -176,17 +179,7 @@ async function appendStopToCachedPlan(cycleId: string, segmentId: string): Promi
   return plan;
 }
 
-app.get("/api/health", (_req, res) => {
-  const mapsStatus = getGoogleMapsStatus();
-  res.json({
-    ok: true,
-    depot: SCRANTON_DEPOT,
-    googleMapsConfigured: mapsStatus.configured,
-    googleMapsAvailable: mapsStatus.available,
-    googleMapsStatus: mapsStatus.status,
-    googleMapsMessage: mapsStatus.message,
-  });
-});
+app.get("/api/health", handleHealth);
 
 app.get("/api/territories", (_req, res) => {
   res.json(uniqueTerritories());

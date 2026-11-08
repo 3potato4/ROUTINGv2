@@ -34,10 +34,10 @@ Restart the API server after setting the key. Without it, the app uses straight-
 
 The full app (UI + API) runs in one container on a single EC2 instance, with an optional **access code** link for your team.
 
-- **Guide:** [deploy/aws-ec2.md](deploy/aws-ec2.md)
-- **Local test:** `docker compose up --build` (set `ACCESS_CODE` in `.env` to try the gate)
-- **Share link:** `https://<your-host>/?code=<ACCESS_CODE>` (set `COOKIE_SECURE=false` for plain HTTP on an Elastic IP)
-- **Deploy from GitHub:** workflow [`.github/workflows/deploy-aws-ec2.yml`](.github/workflows/deploy-aws-ec2.yml) (add `EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY` when the instance is ready)
+- **Guide:** [deploy/aws-ec2.md](deploy/aws-ec2.md) — **HTTPS on 443** (Caddy), secrets on the server only, rate limits, optional Cloudflare
+- **Local test:** `docker compose up --build` (`COOKIE_SECURE=false` for `http://127.0.0.1:3000`)
+- **Share link:** `https://<your-domain>/?code=<ACCESS_CODE>`
+- **Deploy from GitHub:** [`.github/workflows/deploy-aws-ec2.yml`](.github/workflows/deploy-aws-ec2.yml) (`EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY`)
 
 Customer and route data are **in memory**; restarting the container clears the week’s upload until someone imports the CSV again.
 

@@ -28,4 +28,7 @@ if [[ ! -f .env ]]; then
   echo "Created .env from .env.example — edit GOOGLE_MAPS_API_KEY and ACCESS_CODE before starting."
 fi
 
-echo "Bootstrap complete. Next: edit .env, then run deploy/ec2/redeploy.sh"
+echo "Bootstrap complete."
+echo "  1. Edit .env (ROUTING_DOMAIN, secrets, TRUST_PROXY=true, COOKIE_SECURE=true)"
+echo "  2. ./deploy/ec2/redeploy.sh"
+echo "  3. sudo ./deploy/ec2/setup-caddy.sh   # HTTPS on 443"

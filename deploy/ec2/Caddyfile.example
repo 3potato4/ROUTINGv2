@@ -1,9 +1,1 @@
-# Optional HTTPS in front of the app (install Caddy on the host, not in the app container).
-# Replace example.com and point DNS A record to this EC2 Elastic IP.
-#
-# Install: https://caddyserver.com/docs/install
-# Run: sudo caddy run --config /path/to/Caddyfile
-
-example.com {
-  reverse_proxy 127.0.0.1:3000
-}
+# Use deploy/ec2/Caddyfile.template + setup-caddy.sh (reads ROUTING_DOMAIN from .env).

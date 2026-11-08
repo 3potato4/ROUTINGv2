@@ -1,6 +1,12 @@
-# AWS EC2 + Docker hosting (PoC)
+# AWS EC2 + Docker hosting (secure PoC)
 
-Run the **full app** (UI + API) on one EC2 instance. Data (CSV, routes) stays **in memory** until the container restarts.
+Run the **full app** (UI + API) on one EC2 instance. **HTTPS on port 443** is the default path; the app container listens on **127.0.0.1:3000** only (not public). Data (CSV, routes) stays **in memory** until the container restarts.
+
+## Architecture
+
+```text
+Internet → (optional Cloudflare) → Caddy TLS :443 → 127.0.0.1:3000 Docker app → Google Maps APIs
+```
 
 ## 1. Create EC2
 
@@ -9,10 +15,14 @@ Run the **full app** (UI + API) on one EC2 instance. Data (CSV, routes) stays **
 | AMI | Amazon Linux 2023 or Ubuntu 22.04 |
 | Instance type | `t3.small` |
 | Storage | 20 GB gp3 |
-| Elastic IP | Attach for a stable URL |
-| Security group | TCP **3000** (app) from your team; **22** SSH from your IP only |
+| Elastic IP | Attach; use for Google Maps **IP restriction** and DNS |
+| Security group | **443** and **80** from `0.0.0.0/0` (or restrict to office/VPN); **22** SSH from **your IP only**; **do not** open **3000** to the internet |
 
-Optional HTTPS: open **80** and **443**, run Caddy on the host using [ec2/Caddyfile.example](ec2/Caddyfile.example), set in `.env`: `TRUST_PROXY=true`, `COOKIE_SECURE=true`.
+Set a **CloudWatch billing alarm** (Billing → Budgets or CloudWatch alarm on estimated charges) e.g. $25–50/month on your personal account.
+
+### DNS
+
+Create an **A record** for your hostname (e.g. `routing.example.com`) → Elastic IP. Let's Encrypt (via Caddy) requires a real hostname, not a bare IP.
 
 ## 2. Install on the instance
 
@@ -20,60 +30,109 @@ Optional HTTPS: open **80** and **443**, run Caddy on the host using [ec2/Caddyf
 git clone https://github.com/<org>/ROUTINGv2.git
 cd ROUTINGv2
 cp .env.example .env
-# Edit .env — see below
 chmod +x deploy/ec2/*.sh
 ./deploy/ec2/bootstrap.sh
 # Log out/in if bootstrap added you to the docker group
-./deploy/ec2/redeploy.sh
 ```
 
-## 3. Environment (`.env` on the server)
+### Secrets (never in git)
+
+| Secret | Where it lives |
+|--------|----------------|
+| `GOOGLE_MAPS_API_KEY` | `.env` on EC2 (`chmod 600`) or AWS SSM via [load-env-from-ssm.sh](ec2/load-env-from-ssm.sh) |
+| `ACCESS_CODE` | Same `.env` / SSM |
+| `HEALTH_CHECK_TOKEN` | Same `.env` / SSM (optional; gates public `/api/health` detail) |
+| `EC2_SSH_PRIVATE_KEY` | **GitHub Actions Secrets only** (deploy); not on the instance |
+| TLS certificates | Caddy auto-managed on disk |
+| AWS root / IAM user keys | **Not needed** for this PoC (SSH deploy; optional SSM uses **instance IAM role**) |
+
+**Hand-edited `.env` (production example):**
 
 ```bash
-GOOGLE_MAPS_API_KEY=...        # Geocoding, Distance Matrix, Directions
-ACCESS_CODE=...                # Team secret for the share link
+ROUTING_DOMAIN=routing.example.com
+GOOGLE_MAPS_API_KEY=...
+ACCESS_CODE=...
+HEALTH_CHECK_TOKEN=...          # optional
 NODE_ENV=production
-PORT=3000
-HOST_PORT=3000                 # Host port published by docker compose
-
-# HTTP PoC on Elastic IP (no TLS):
-COOKIE_SECURE=false
-
-# Behind Caddy/nginx with HTTPS:
-# TRUST_PROXY=true
-# COOKIE_SECURE=true
+TRUST_PROXY=true
+COOKIE_SECURE=true
+RATE_LIMIT_ENABLED=true
 ```
 
-**Share link:** `http(s)://<your-elastic-ip-or-domain>/?code=<ACCESS_CODE>`
+**Optional SSM:** create SecureString parameters `/routing/prod/google_maps_api_key`, `access_code`, `health_check_token`, attach `AmazonSSMReadOnlyAccess` (or tighter) to the EC2 instance role, then:
 
-Health check (no access code): `GET /api/health`
+```bash
+./deploy/ec2/load-env-from-ssm.sh
+```
 
-## 4. GitHub Actions deploy
+### Google Maps key hardening (console)
 
-After EC2 is set up, add **repository secrets** (Settings → Secrets and variables → Actions):
+1. **API restrictions:** Geocoding API, Distance Matrix API, Directions API only.
+2. **Application restrictions:** IP addresses → your **Elastic IP**.
+3. **Quotas:** set per-day caps on Distance Matrix / Directions / Geocoding.
+4. **Billing:** budget + email alert on the GCP project.
+
+The browser never receives the Maps key; only server routes in `server/` call Google. The frontend uses relative `/api` ([`src/lib/api.ts`](../src/lib/api.ts)).
+
+### Start app + HTTPS
+
+```bash
+./deploy/ec2/redeploy.sh
+sudo ./deploy/ec2/setup-caddy.sh
+```
+
+**Share link (encrypted):** `https://<ROUTING_DOMAIN>/?code=<ACCESS_CODE>`
+
+**Health:** Docker hits `http://127.0.0.1:3000/api/health` inside the container (full detail). From the internet, if `HEALTH_CHECK_TOKEN` is set, use header `X-Health-Token` or `?token=`; otherwise callers get `404`.
+
+## 3. Rate limits (abuse / Maps spend)
+
+Enabled when `RATE_LIMIT_ENABLED` is not `false` (defaults on):
+
+| Tier | Scope | Default |
+|------|--------|---------|
+| Global | All routes except health | 300 / 15 min / IP |
+| Auth gate | `POST /`, `GET /?code=` | 10 / 15 min / IP |
+| Expensive | `build`, `geometry`, `reoptimize`, `apply-traffic`, `regeocode` | 60 / 15 min / IP |
+| Upload | `POST /api/customers/upload` | 5 / hour / IP |
+
+Requires `TRUST_PROXY=true` behind Caddy so client IP is correct.
+
+## 4. Optional Cloudflare (DDoS / hide origin)
+
+Use when the URL is on the public internet:
+
+1. Add the site to Cloudflare; point DNS to Cloudflare (orange cloud).
+2. SSL/TLS mode **Full (strict)**; origin = your Elastic IP or hostname.
+3. Optional **Rate limiting** rules on `/api/*` and `/` (free tier has basic limits).
+4. Restrict security group **443** to [Cloudflare IP ranges](https://www.cloudflare.com/ips/) if you want origin to accept only Cloudflare (advanced).
+
+Alternate without opening inbound 443: **Cloudflare Tunnel** (`cloudflared`) to `127.0.0.1:3000` — see [Cloudflare Tunnel docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/).
+
+## 5. GitHub Actions deploy
+
+Repository **Secrets**:
 
 | Secret | Example |
 |--------|---------|
 | `EC2_HOST` | Elastic IP or DNS name |
-| `EC2_USER` | `ec2-user` (Amazon Linux) or `ubuntu` |
-| `EC2_SSH_PRIVATE_KEY` | Contents of your `.pem` key |
+| `EC2_USER` | `ec2-user` or `ubuntu` |
+| `EC2_SSH_PRIVATE_KEY` | `.pem` contents |
 
-Optional **variable** `EC2_APP_DIR` — absolute path to the repo on the server (default: `$HOME/ROUTINGv2` on the deploy user).
+Optional variable `EC2_APP_DIR` (default `$HOME/ROUTINGv2` on the server).
 
-Pushes to `main` and **workflow_dispatch** run [deploy-aws-ec2.yml](../.github/workflows/deploy-aws-ec2.yml), which SSHs in and runs `deploy/ec2/redeploy.sh`. Until secrets exist, the workflow job is skipped automatically.
+Workflow: [`.github/workflows/deploy-aws-ec2.yml`](../.github/workflows/deploy-aws-ec2.yml). Skips until secrets exist.
 
-You do **not** need long-lived AWS access keys in GitHub for this SSH-based deploy.
-
-## 5. Local Docker test
+## 6. Local Docker test (no Caddy)
 
 ```bash
 cp .env.example .env
-# Set ACCESS_CODE for local gate testing
+# ACCESS_CODE=...; COOKIE_SECURE=false; leave ROUTING_DOMAIN unset
 docker compose up --build
 ```
 
-Open `http://localhost:3000/?code=<ACCESS_CODE>`.
+Open `http://127.0.0.1:3000/?code=<ACCESS_CODE>` (compose binds localhost only).
 
 ## AWS containers (reference)
 
-Images are standard **Docker/OCI**. **Amazon ECR** is AWS’s registry; this PoC builds on the EC2 host via `docker compose build`. A later upgrade can push from GitHub Actions to ECR and pull on the instance.
+Images are standard **Docker/OCI**. This PoC builds on the EC2 host with `docker compose build`.
