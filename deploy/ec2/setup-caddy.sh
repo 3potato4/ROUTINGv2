@@ -98,8 +98,19 @@ envsubst '$ROUTING_DOMAIN' < "$REPO_DIR/deploy/ec2/Caddyfile.template" > "$TEMP"
 sudo cp "$TEMP" /etc/caddy/Caddyfile
 rm -f "$TEMP"
 
+if ! sudo caddy validate --config /etc/caddy/Caddyfile; then
+  echo "Caddyfile invalid — check ROUTING_DOMAIN and /etc/caddy/Caddyfile" >&2
+  exit 1
+fi
+
 sudo systemctl enable caddy
 sudo systemctl restart caddy
+sleep 2
+if ! systemctl is-active --quiet caddy; then
+  echo "Caddy failed to start. Run: ./deploy/ec2/troubleshoot-caddy.sh" >&2
+  sudo journalctl -u caddy -n 20 --no-pager
+  exit 1
+fi
 sudo systemctl --no-pager --full status caddy || true
 
 echo "Caddy serving https://${ROUTING_DOMAIN} -> 127.0.0.1:3000"
