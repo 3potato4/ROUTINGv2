@@ -116,4 +116,33 @@ if (sanitizeTeamMembers("Angela Riccetti and David Hall") !== "Angela Riccetti")
 if (pw?.territoryId !== "western-philly") throw new Error("PW territory alias failed");
 if (pw.contactName !== "Christine") throw new Error("Outfield phone parse failed");
 
+const partialCsv = `name,street 1 (Address - Street 1),City(Address - City),phone numbers,Delivery instructions(specific delivery instructions for that restaurant),Territory(Which Territory the restaurant is in)
+Good Place,1 Main St,Philadelphia,Tom 215-555-9999,Side door,Philadelphia
+Bad Place,2 Oak St,Media,Sam 610-555-0100,Front,`;
+
+const partial = await parseCustomersCsv(partialCsv, new Date("2026-09-10T12:00:00"));
+if (partial.customers.length !== 1) throw new Error("Expected 1 customer from partial CSV");
+if (partial.errors.length !== 1) throw new Error("Expected 1 row error from partial CSV");
+if (partial.customers[0]!.name !== "Good Place") throw new Error("Wrong customer kept");
+
+const misalignedOutfield = `Name,Street 1,City,Phone Numbers,Emails,Team Members,Delivery Instructions (Places),LID (Places),NA Payment Method (Places),Territory (Places)
+Bar Torino,100 Main St,Pittsburgh,Tom 412-555-0100,chef@example.com,Team A,Use rear door, with comma,62001,Card,Pittsburgh
+`;
+
+const misaligned = await parseCustomersCsv(misalignedOutfield, new Date("2026-09-10T12:00:00"));
+if (misaligned.errors.length > 0) throw new Error(misaligned.errors.join("; "));
+const barTorino = misaligned.customers.find((c) => c.name === "Bar Torino");
+if (!barTorino || barTorino.territoryId !== "pittsburgh") {
+  throw new Error("Bar Torino should import with Pittsburgh from last column");
+}
+if (!barTorino.deliveryInstructions.includes("comma")) {
+  throw new Error("Delivery instructions should keep in-field comma, not split across columns");
+}
+if (barTorino.outfieldLid !== "62001" || barTorino.paymentMethod !== "Card") {
+  throw new Error("LID and payment should stay in their columns after realignment");
+}
+if (barTorino.address.includes(",")) {
+  throw new Error("Street address should not pick up comma-split fragments");
+}
+
 console.log("CSV parser tests passed.");

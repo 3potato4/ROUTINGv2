@@ -203,8 +203,8 @@ app.post("/api/customers/upload", express.text({ type: ["text/csv", "text/plain"
   const filename = (req.query.filename as string) || undefined;
   try {
     const summary = await importWeeklyCustomersCsv(csvText, REFERENCE_DATE, filename);
-    if (summary.errors.length === 0) clearRoutePlans();
-    res.status(summary.errors.length > 0 ? 400 : 200).json(summary);
+    if (summary.customerCount > 0) clearRoutePlans();
+    res.status(summary.customerCount === 0 ? 400 : 200).json(summary);
   } catch (e) {
     res.status(500).json({
       uploadedAt: new Date().toISOString(),
