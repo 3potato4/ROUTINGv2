@@ -156,6 +156,7 @@ export async function updateCustomerAccount(
     );
     customer.lat = coords.lat;
     customer.lng = coords.lng;
+    customer.coordinateSource = coords.geocoded ? "geocoded" : "approximate";
     if (!coords.geocoded) {
       warnings.push("Address updated but location is approximate");
     }
@@ -645,10 +646,19 @@ export function clearCustomerData(): CustomerUploadSummary {
   };
 }
 
-async function geocodeLoadedCustomers(): Promise<{ geocoded: number; approximate: number; warnings: string[] }> {
+async function geocodeLoadedCustomers(options?: {
+  forceAddressGeocode?: boolean;
+}): Promise<{
+  outfieldCsv: number;
+  geocoded: number;
+  approximate: number;
+  warnings: string[];
+}> {
   const warnings: string[] = [];
+  let outfieldCsv = 0;
   let geocoded = 0;
   let approximate = 0;
+  const forceAddressGeocode = options?.forceAddressGeocode === true;
 
   resetGeocoderAlerts();
 
@@ -656,6 +666,14 @@ async function geocodeLoadedCustomers(): Promise<{ geocoded: number; approximate
     const { street, city, zip } = normalizeAddressFields(customer.address, customer.city);
     customer.address = street;
     customer.city = city;
+
+    const keepOutfieldCsv =
+      !forceAddressGeocode && customer.coordinateSource === "outfield_csv";
+
+    if (keepOutfieldCsv) {
+      outfieldCsv++;
+      continue;
+    }
 
     const coords = await resolveCoordinates(
       street,
@@ -667,9 +685,12 @@ async function geocodeLoadedCustomers(): Promise<{ geocoded: number; approximate
     customer.lat = coords.lat;
     customer.lng = coords.lng;
 
-    if (coords.geocoded) geocoded++;
-    else {
+    if (coords.geocoded) {
+      geocoded++;
+      customer.coordinateSource = "geocoded";
+    } else {
       approximate++;
+      customer.coordinateSource = "approximate";
       warnings.push(
         `${customer.name}: address not found — using approximate territory location`
       );
@@ -687,17 +708,27 @@ async function geocodeLoadedCustomers(): Promise<{ geocoded: number; approximate
   }
 
   if (customers.length > 0) {
-    warnings.unshift(
-      `Geocoded ${geocoded} of ${customers.length} addresses for map and route optimization` +
-        (approximate > 0 ? ` (${approximate} approximate)` : "")
-    );
+    if (outfieldCsv > 0 && !forceAddressGeocode) {
+      warnings.unshift(
+        `Used Outfield Latitude/Longitude for ${outfieldCsv} of ${customers.length} accounts` +
+          (geocoded > 0 || approximate > 0
+            ? `; geocoded ${geocoded} from address` +
+              (approximate > 0 ? ` (${approximate} approximate)` : "")
+            : "")
+      );
+    } else {
+      warnings.unshift(
+        `Geocoded ${geocoded} of ${customers.length} addresses for map and route optimization` +
+          (approximate > 0 ? ` (${approximate} approximate)` : "")
+      );
+    }
   }
 
-  return { geocoded, approximate, warnings };
+  return { outfieldCsv, geocoded, approximate, warnings };
 }
 
 export async function regeocodeAllCustomers(): Promise<CustomerUploadSummary> {
-  const { warnings } = await geocodeLoadedCustomers();
+  const { warnings } = await geocodeLoadedCustomers({ forceAddressGeocode: true });
 
   return {
     uploadedAt: new Date().toISOString(),

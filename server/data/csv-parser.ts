@@ -12,6 +12,7 @@ import {
 
 /** Maps normalized header tokens to internal field names */
 const HEADER_ALIASES: Record<string, string> = {
+  account_id: "account_id",
 /** Maps CSV "name" column → restaurant; do not use for point of contact */
   account_name: "restaurant_name",
   restaurant_name: "restaurant_name",
@@ -462,7 +463,7 @@ export async function parseCustomersCsv(
 
     let lat = Number(row.lat);
     let lng = Number(row.lng);
-    let geocodedFromAddress = false;
+    let coordinateSource: Customer["coordinateSource"];
 
     const { street, city: normCity, zip } = normalizeAddressFields(
       row.address,
@@ -475,6 +476,7 @@ export async function parseCustomersCsv(
       if (coords.valid) {
         lat = coords.lat;
         lng = coords.lng;
+        coordinateSource = "outfield_csv";
         if (coords.swapped) {
           warnings.push(`Row ${rowNumber} (${name}): lat/lng columns look swapped — corrected.`);
         }
@@ -489,10 +491,11 @@ export async function parseCustomersCsv(
       const coords = resolveCoordinatesApproximate(street, normCity, territoryId, name, zip);
       lat = coords.lat;
       lng = coords.lng;
-      geocodedFromAddress = coords.geocoded;
+      coordinateSource = "approximate";
     }
 
-    let id = slugify(name, rowIdx);
+    const outfieldAccountId = cleanCsvCell(row.account_id ?? "");
+    let id = outfieldAccountId ? `outfield-${outfieldAccountId}` : slugify(name, rowIdx);
     while (seenIds.has(id)) id = `${id}-${rowIdx}`;
     seenIds.add(id);
 
@@ -514,14 +517,12 @@ export async function parseCustomersCsv(
       contactPhone,
       contactEmail,
       deliveryInstructions: row.delivery_instructions,
+      coordinateSource,
+      ...(outfieldAccountId ? { outfieldAccountId } : {}),
       ...(teamMembers ? { teamMembers } : {}),
       ...(outfieldLid ? { outfieldLid } : {}),
       ...(paymentMethod ? { paymentMethod } : {}),
     });
-
-    if (!geocodedFromAddress && !row.lat) {
-      /* geocode warning already added */
-    }
 
     const cases = Number(row.cases ?? "0");
     if (!Number.isNaN(cases) && cases > 0) {

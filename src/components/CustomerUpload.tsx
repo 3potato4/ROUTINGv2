@@ -128,7 +128,7 @@ export default function CustomerUpload({
           disabled={uploading}
           onClick={() => inputRef.current?.click()}
         >
-          {uploading ? "Uploading & geocoding…" : "Upload CSV"}
+          {uploading ? "Uploading…" : "Upload CSV"}
         </button>
         {hasLoadedAccounts && (
           <button
