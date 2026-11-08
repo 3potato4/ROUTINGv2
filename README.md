@@ -36,7 +36,7 @@ The full app (UI + API) runs in one container on a single EC2 instance, with an 
 
 - **Guide:** [deploy/aws-ec2.md](deploy/aws-ec2.md) — **HTTPS on 443** (Caddy), secrets on the server only, rate limits, optional Cloudflare
 - **Local test:** `docker compose up --build` (`COOKIE_SECURE=false` for `http://127.0.0.1:3000`)
-- **Share link:** `https://<your-domain>/?code=<ACCESS_CODE>`
+- **Share link:** `https://magnottarouting.com/?code=<ACCESS_CODE>` (set secrets in `.env` on EC2 — see `deploy/ec2/env.production.example`)
 - **Deploy from GitHub:** [`.github/workflows/deploy-aws-ec2.yml`](.github/workflows/deploy-aws-ec2.yml) (`EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY`)
 
 Customer and route data are **in memory**; restarting the container clears the week’s upload until someone imports the CSV again.

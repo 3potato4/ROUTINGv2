@@ -22,14 +22,14 @@ Set a **CloudWatch billing alarm** (Billing → Budgets or CloudWatch alarm on e
 
 ### DNS
 
-Create an **A record** for your hostname (e.g. `routing.example.com`) → Elastic IP. Let's Encrypt (via Caddy) requires a real hostname, not a bare IP.
+Create an **A record** for **`magnottarouting.com`** (record name **blank** in Route 53) → **Elastic IP**. Let's Encrypt (via Caddy) requires a real hostname, not a bare IP.
 
 ## 2. Install on the instance
 
 ```bash
-git clone https://github.com/<org>/ROUTINGv2.git
+git clone https://github.com/3potato4/ROUTINGv2.git
 cd ROUTINGv2
-cp .env.example .env
+cp deploy/ec2/env.production.example .env
 chmod +x deploy/ec2/*.sh
 ./deploy/ec2/bootstrap.sh
 # Log out/in if bootstrap added you to the docker group
@@ -46,13 +46,14 @@ chmod +x deploy/ec2/*.sh
 | TLS certificates | Caddy auto-managed on disk |
 | AWS root / IAM user keys | **Not needed** for this PoC (SSH deploy; optional SSM uses **instance IAM role**) |
 
-**Hand-edited `.env` (production example):**
+**`.env` on EC2** (start from [`deploy/ec2/env.production.example`](ec2/env.production.example)):
 
 ```bash
-ROUTING_DOMAIN=routing.example.com
-GOOGLE_MAPS_API_KEY=...
-ACCESS_CODE=...
-HEALTH_CHECK_TOKEN=...          # optional
+ROUTING_DOMAIN=magnottarouting.com
+APP_URL=https://magnottarouting.com
+GOOGLE_MAPS_API_KEY=...   # set on server; restrict to Elastic IP in GCP
+ACCESS_CODE=...           # set on server
+HEALTH_CHECK_TOKEN=...    # optional
 NODE_ENV=production
 TRUST_PROXY=true
 COOKIE_SECURE=true
@@ -81,7 +82,7 @@ The browser never receives the Maps key; only server routes in `server/` call Go
 sudo ./deploy/ec2/setup-caddy.sh
 ```
 
-**Share link (encrypted):** `https://<ROUTING_DOMAIN>/?code=<ACCESS_CODE>`
+**Share link (encrypted):** `https://magnottarouting.com/?code=<ACCESS_CODE>`
 
 **Health:** Docker hits `http://127.0.0.1:3000/api/health` inside the container (full detail). From the internet, if `HEALTH_CHECK_TOKEN` is set, use header `X-Health-Token` or `?token=`; otherwise callers get `404`.
 
@@ -115,8 +116,8 @@ Repository **Secrets**:
 
 | Secret | Example |
 |--------|---------|
-| `EC2_HOST` | Elastic IP or DNS name |
-| `EC2_USER` | `ec2-user` or `ubuntu` |
+| `EC2_HOST` | `magnottarouting.com` or your Elastic IP |
+| `EC2_USER` | `ec2-user` (Amazon Linux 2023) or `ubuntu` |
 | `EC2_SSH_PRIVATE_KEY` | `.pem` contents |
 
 Optional variable `EC2_APP_DIR` (default `$HOME/ROUTINGv2` on the server).

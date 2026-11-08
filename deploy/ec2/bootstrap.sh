@@ -24,8 +24,14 @@ if ! groups "$USER" | grep -q docker; then
 fi
 
 if [[ ! -f .env ]]; then
-  cp .env.example .env
-  echo "Created .env from .env.example — edit GOOGLE_MAPS_API_KEY and ACCESS_CODE before starting."
+  if [[ -f deploy/ec2/env.production.example ]]; then
+    cp deploy/ec2/env.production.example .env
+    echo "Created .env from deploy/ec2/env.production.example — set GOOGLE_MAPS_API_KEY and ACCESS_CODE."
+  else
+    cp .env.example .env
+    echo "Created .env from .env.example — edit secrets before starting."
+  fi
+  chmod 600 .env 2>/dev/null || true
 fi
 
 echo "Bootstrap complete."
