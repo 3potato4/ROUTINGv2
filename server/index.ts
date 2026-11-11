@@ -71,6 +71,7 @@ import type {
   StopAssignment,
 } from "../shared/types.js";
 import { SCRANTON_DEPOT } from "../shared/constants.js";
+import { RELEASE_VERSION } from "../shared/releaseVersion.js";
 
 const app = express();
 app.use(cors());
@@ -174,6 +175,7 @@ app.get("/api/health", (_req, res) => {
   const mapsStatus = getGoogleMapsStatus();
   res.json({
     ok: true,
+    releaseVersion: RELEASE_VERSION,
     depot: SCRANTON_DEPOT,
     googleMapsConfigured: mapsStatus.configured,
     googleMapsAvailable: mapsStatus.available,

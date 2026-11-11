@@ -1,0 +1,27 @@
+---
+description: Consecutive V.# release labels on each shipped update
+alwaysApply: true
+---
+
+# Release versioning (V.#)
+
+## Current label
+
+- Source of truth: `shared/releaseVersion.ts` → `RELEASE_VERSION` (e.g. `V.3`).
+- UI shows the same value in the app header.
+- `CHANGELOG.md` lists one `## V.#` section per release.
+
+## When the user ships an update (commit/push or explicit “release”)
+
+1. **Increment** `RELEASE_VERSION` by 1 (`V.2` → `V.3`). Never skip or reuse numbers.
+2. **Add** a new top section in `CHANGELOG.md` under `## V.#` with a short bullet summary of what changed.
+3. **Prefix the git commit subject** with `V.#: ` (e.g. `V.2: Fix map pins for …`).
+4. Include `shared/releaseVersion.ts` and `CHANGELOG.md` in the same commit as the functional changes when possible.
+
+## Wording
+
+- Use **V.#** exactly (capital V, dot, integer). Not `v2`, `Version 2`, or semver unless the user asks.
+
+## Do not bump
+
+- Drive-by edits, local experiments, or commits the user did not treat as a release unless they ask to label it.

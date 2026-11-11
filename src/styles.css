@@ -41,8 +41,10 @@ body {
 .app--loading,
 .app--error {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.25rem;
   grid-column: 1 / -1;
   padding: 2rem;
 }
@@ -66,6 +68,34 @@ body {
 .header h1 {
   font-size: 1.35rem;
   font-weight: 600;
+}
+
+.header__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+}
+
+.release-version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  color: #f6e8c3;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.release-version-badge--prominent {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.65rem;
 }
 
 .header__sub {
