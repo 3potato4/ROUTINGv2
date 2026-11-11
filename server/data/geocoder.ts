@@ -89,6 +89,32 @@ export function normalizeAddressFields(
   return { street: s, city: c, zip: z };
 }
 
+/** Validate lat/lng from CSV or APIs (eastern Pennsylvania service area). */
+export function isPlausiblePaCoordinate(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= 39.5 &&
+    lat <= 42.6 &&
+    lng <= -73.5 &&
+    lng >= -81
+  );
+}
+
+/** Fix common lat/lng column swaps; invalid pairs should be re-geocoded from address. */
+export function normalizeCsvCoordinates(
+  lat: number,
+  lng: number
+): { lat: number; lng: number; swapped: boolean; valid: boolean } {
+  if (isPlausiblePaCoordinate(lat, lng)) {
+    return { lat, lng, swapped: false, valid: true };
+  }
+  if (isPlausiblePaCoordinate(lng, lat)) {
+    return { lat: lng, lng: lat, swapped: true, valid: true };
+  }
+  return { lat, lng, swapped: false, valid: false };
+}
+
 function hashOffset(seed: string): { lat: number; lng: number } {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;

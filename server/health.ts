@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { SCRANTON_DEPOT } from "../shared/constants.js";
+import { RELEASE_VERSION } from "../shared/releaseVersion.js";
 import { getGoogleMapsStatus } from "./routing/google-maps-status.js";
 
 function isLoopback(ip: string | undefined): boolean {
@@ -28,6 +29,7 @@ export function handleHealth(req: Request, res: Response): void {
   const mapsStatus = getGoogleMapsStatus();
   res.json({
     ok: true,
+    releaseVersion: RELEASE_VERSION,
     depot: SCRANTON_DEPOT,
     googleMapsConfigured: mapsStatus.configured,
     googleMapsAvailable: mapsStatus.available,

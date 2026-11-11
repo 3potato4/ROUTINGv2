@@ -1,4 +1,4 @@
-import { normalizeAddressFields } from "./geocoder.js";
+import { isPlausiblePaCoordinate, normalizeAddressFields, normalizeCsvCoordinates } from "./geocoder.js";
 import { formatStreetCity } from "../../shared/formatAddress.js";
 
 const split = normalizeAddressFields("100 Market St, West Chester, PA", "", "");
@@ -16,6 +16,13 @@ if (formatStreetCity("", "West Chester") !== "West Chester") {
 }
 if (formatStreetCity("100 Main", "West Chester") !== "100 Main, West Chester") {
   throw new Error("formatStreetCity combined line failed");
+}
+
+if (!isPlausiblePaCoordinate(39.95, -75.16)) throw new Error("Philly coords should be valid");
+if (isPlausiblePaCoordinate(-75.16, 39.95)) throw new Error("Swapped coords should not validate as lat/lng");
+const swapped = normalizeCsvCoordinates(-75.165, 39.953);
+if (!swapped.valid || !swapped.swapped || swapped.lat !== 39.953) {
+  throw new Error(`Swap correction failed: ${JSON.stringify(swapped)}`);
 }
 
 console.log("Geocoder address tests passed.");
