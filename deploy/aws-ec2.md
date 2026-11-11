@@ -116,7 +116,27 @@ Alternate without opening inbound 443: **Cloudflare Tunnel** (`cloudflared`) to 
 
 ## 5. GitHub Actions deploy
 
-Repository **Secrets**:
+### Self-hosted runner (default)
+
+Production deploys run on the EC2 box via a **repository** self-hosted runner:
+
+| Item | Value |
+|------|--------|
+| Runner name | `magnotta-ec2-routing` |
+| Install path | `~/runner-routing` (user `ec2-user`) |
+| Service | `actions.runner.*.service` (systemd) |
+| Labels | `self-hosted`, `Linux`, `X64`, `routing` |
+| App clone | `/home/ec2-user/ROUTINGv2` |
+
+Flow: push to **`main`** (or manual **workflow_dispatch**) runs [`.github/workflows/deploy-aws-ec2-self-hosted.yml`](../.github/workflows/deploy-aws-ec2-self-hosted.yml) on the runner with label **`routing`**. The job runs `deploy/ec2/redeploy.sh` in the server clone (git pull `main`, `docker compose` rebuild/restart), then curls `http://127.0.0.1:3000/api/health` until `ok: true`.
+
+Optional Actions variable **`EC2_APP_DIR`** overrides the clone path (default `~/ROUTINGv2` on the runner).
+
+Because the repo is **public**, ensure **Settings → Actions → General** allows self-hosted runners for this repository (fork PR workflows must **not** use this runner; the self-hosted workflow has no `pull_request` triggers).
+
+### SSH deploy (legacy, manual only)
+
+Repository **Secrets** (for optional SSH fallback):
 
 | Secret | Example |
 |--------|---------|
@@ -124,9 +144,7 @@ Repository **Secrets**:
 | `EC2_USER` | `ec2-user` (Amazon Linux 2023) or `ubuntu` |
 | `EC2_SSH_PRIVATE_KEY` | `.pem` contents |
 
-Optional variable `EC2_APP_DIR` (default `$HOME/ROUTINGv2` on the server).
-
-Workflow: [`.github/workflows/deploy-aws-ec2.yml`](../.github/workflows/deploy-aws-ec2.yml).
+Workflow: [`.github/workflows/deploy-aws-ec2.yml`](../.github/workflows/deploy-aws-ec2.yml) — **`workflow_dispatch` only** (no push). Requires inbound SSH from GitHub-hosted runners unless you open port 22.
 
 ### Troubleshooting: `dial tcp …:22: i/o timeout`
 
