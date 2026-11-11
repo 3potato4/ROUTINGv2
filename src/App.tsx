@@ -38,6 +38,7 @@ import {
 } from "./lib/segmentDrag";
 import { formatDateTime, formatDurationMinutes } from "@shared/timeFormat";
 import { NEW_DAY_SEGMENT_ID } from "@shared/constants";
+import ReleaseVersionBadge from "./components/ReleaseVersionBadge";
 import type { BatchSummary, RoutePlan } from "@shared/types";
 
 export default function App() {
@@ -528,11 +529,21 @@ export default function App() {
   const selectedBatch = batches.find((b) => b.cycleId === selectedCycleId);
 
   if (loading && !plan && batches.length === 0) {
-    return <div className="app app--loading">Loading…</div>;
+    return (
+      <div className="app app--loading">
+        <p>Loading…</p>
+        <ReleaseVersionBadge prominent />
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="app app--error">{error}</div>;
+    return (
+      <div className="app app--error">
+        <p>{error}</p>
+        <ReleaseVersionBadge prominent />
+      </div>
+    );
   }
 
   return (
@@ -540,7 +551,10 @@ export default function App() {
     <div className={`app${appView === "customers" ? " app--customers-view" : ""}`}>
       <header className="header">
         <div className="header__brand">
-          <h1>F Magnotta Wines - Routing</h1>
+          <h1 className="header__title-row">
+            <span>F Magnotta Wines - Routing</span>
+            <ReleaseVersionBadge />
+          </h1>
         </div>
         <nav className="header__nav" aria-label="Main views">
           <button

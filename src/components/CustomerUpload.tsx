@@ -85,9 +85,10 @@ export default function CustomerUpload({
     if (!canClearData) return;
     setUploading(true);
     setError(null);
+    setParseIssuesOpen(false);
     try {
-      const result = await resetCustomers();
-      setStatus(result.customerCount > 0 ? result : null);
+      await resetCustomers();
+      setStatus(null);
       onCustomersLoaded?.();
       onUploaded();
     } catch (e) {
@@ -153,6 +154,7 @@ export default function CustomerUpload({
                 className={`btn btn--secondary${layout === "header" ? " btn--compact" : " btn--block"}`}
                 disabled={uploading}
                 onClick={() => void handleClear()}
+                title="Remove imported accounts, orders, and failed upload state"
               >
                 {layout === "header" ? "Clear data" : "Clear uploaded data"}
               </button>
@@ -160,6 +162,14 @@ export default function CustomerUpload({
           </>
         )}
       </div>
+
+      {status && status.customerCount === 0 && status.errors.length > 0 && (
+        <p className="customer-upload__error customer-upload__error--import">
+          {status.filename ? `${status.filename}: ` : ""}
+          No accounts were imported ({status.errors.length} row
+          {status.errors.length !== 1 ? "s" : ""} blocked). Use Clear data, then upload again.
+        </p>
+      )}
 
       {status && status.customerCount > 0 && (
         <p className={`customer-upload__status${hideLoadedStatus ? " customer-upload__status--compact" : ""}`}>
@@ -170,7 +180,7 @@ export default function CustomerUpload({
             : ""}
           {!hideLoadedStatus &&
             (status.orderCount > 0 ? ` · ${status.orderCount} orders` : " · select orders below")}
-          {hideLoadedStatus && status.errors.length === 0 ? " · use Re-geocode for precise map pins" : ""}
+          {hideLoadedStatus && status.errors.length === 0 ? " · Re-geocode if pins still look wrong" : ""}
         </p>
       )}
 

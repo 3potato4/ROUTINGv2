@@ -66,6 +66,10 @@ export interface Customer {
   outfieldLid?: string;
   /** Outfield NA Payment Method (Places) */
   paymentMethod?: string;
+  /** Map pin source — Outfield CSV coords vs address geocoding */
+  coordinateSource?: "outfield_csv" | "geocoded" | "approximate";
+  /** Outfield Account ID from CSV when present */
+  outfieldAccountId?: string;
 }
 
 /** Editable customer database fields (Customer account modal). */
